@@ -13,32 +13,50 @@ const initializeFirebaseAdmin = (): App | null => {
   // Check for service account credentials
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+  // Handle private key formatting for different environments
+  if (privateKey) {
+    // Remove surrounding quotes if present
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.slice(1, -1);
+    }
+    // Replace literal \n with actual newlines
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+
+  console.log('Firebase Admin Config:', {
+    projectId: projectId || 'NOT SET',
+    clientEmail: clientEmail || 'NOT SET',
+    privateKeyExists: !!privateKey,
+    privateKeyLength: privateKey?.length || 0,
+    privateKeyStart: privateKey?.substring(0, 30) || 'N/A',
+  });
 
   if (!projectId) {
     console.warn('Firebase Admin: Missing project ID');
     return null;
   }
 
-  try {
-    // If we have service account credentials, use them
-    if (clientEmail && privateKey) {
-      adminApp = initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
-      console.log('Firebase Admin initialized with service account');
-    } else {
-      // Initialize without credentials (works in Google Cloud environments)
-      adminApp = initializeApp({
-        projectId,
-      });
-      console.log('Firebase Admin initialized with project ID only');
-    }
+  if (!clientEmail) {
+    console.warn('Firebase Admin: Missing client email');
+    return null;
+  }
 
+  if (!privateKey) {
+    console.warn('Firebase Admin: Missing private key');
+    return null;
+  }
+
+  try {
+    adminApp = initializeApp({
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+    });
+    console.log('Firebase Admin initialized successfully');
     return adminApp;
   } catch (error) {
     console.error('Failed to initialize Firebase Admin:', error);
