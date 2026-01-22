@@ -9,15 +9,12 @@ import ShipsSection from '@/components/sections/ShipsSection';
 import PackagesSection from '@/components/sections/PackagesSection';
 import ContactSection from '@/components/sections/ContactSection';
 import Footer from '@/components/ui/Footer';
+import ChatBot from '@/components/ChatBot';
 
 // Dynamically import 3D scene to prevent SSR issues
 const Scene3D = dynamic(() => import('@/components/3d/Scene3D'), {
   ssr: false,
-  loading: () => (
-    <div className="fixed inset-0 z-0 flex items-center justify-center bg-[#030014]">
-      <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
+  loading: () => null
 });
 
 export default function Home() {
@@ -39,6 +36,9 @@ export default function Home() {
         <ContactSection />
         <Footer />
       </div>
+
+      {/* AI ChatBot */}
+      <ChatBot />
     </main>
   );
 }
