@@ -78,9 +78,17 @@ function PaymentSuccessContent() {
         });
 
         const data = await response.json();
+        console.log('Payment confirm response:', data);
 
         if (!response.ok) {
           throw new Error(data.error || '결제 확인에 실패했습니다.');
+        }
+
+        // Log Firestore status for debugging
+        if (data.firestoreSuccess) {
+          console.log('Order saved to Firestore successfully');
+        } else {
+          console.warn('Firestore save failed:', data.firestoreError);
         }
 
         setOrderNumber(data.orderNumber || orderId);

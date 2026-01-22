@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/context/AuthContext';
-import { getUserOrders, getAllOrders } from '@/lib/firebase/firestore';
+// Orders are fetched via API endpoint
 import { Order } from '@/lib/types';
 
 const formatPrice = (price: number) => {
@@ -81,29 +81,20 @@ export default function OrdersPage() {
 
       try {
         setError(null);
+        console.log('Fetching orders for userId:', userId, 'email:', userEmail);
 
-        // Fetch ALL orders to display existing data
-        const allOrders = await getAllOrders();
+        // Use API endpoint to fetch orders (bypasses client-side security rules)
+        const response = await fetch(`/api/orders/user?userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(userEmail || '')}`);
+        const data = await response.json();
 
-        if (allOrders.length > 0) {
-          // Show all orders regardless of userId for now
-          setOrders(allOrders);
-          setDebugInfo(`전체 주문 ${allOrders.length}건 표시 중 (내 userId: ${userId})`);
-
-          // Show userId mismatch info
-          const myOrders = allOrders.filter(o => o.userId === userId);
-          const otherOrders = allOrders.filter(o => o.userId !== userId);
-          if (myOrders.length === 0 && otherOrders.length > 0) {
-            const uniqueUserIds = [...new Set(otherOrders.map(o => o.userId))];
-            setAllOrdersDebug(`⚠️ 내 주문: ${myOrders.length}건, 다른 userId 주문: ${otherOrders.length}건 (userId: ${uniqueUserIds.join(', ')})`);
-          } else {
-            setAllOrdersDebug(`내 주문: ${myOrders.length}건`);
-          }
-        } else {
-          setOrders([]);
-          setDebugInfo(`내 userId: ${userId}`);
-          setAllOrdersDebug('전체 주문 0건 (DB에 주문 없음)');
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch orders');
         }
+
+        console.log('Orders fetched via API:', data);
+        setOrders(data.orders || []);
+        setDebugInfo(`내 주문 ${data.count}건 (userId: ${userId})`);
+        setAllOrdersDebug('');
       } catch (err) {
         console.error('Failed to fetch orders:', err);
         setError(err instanceof Error ? err.message : '주문 내역을 불러오는데 실패했습니다.');

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from '@/lib/firebase/config';
+import { getAdminDb, isAdminConfigured } from '@/lib/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { staticProducts } from '@/lib/data/products';
 
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY || '';
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Payment confirmed successfully - now create order in Firestore
+    // Payment confirmed successfully - now create order in Firestore using Admin SDK
     let orderNumber = orderId;
 
     console.log('Payment confirmed. Creating order with:', {
@@ -75,7 +75,12 @@ export async function POST(req: NextRequest) {
       amount,
     });
 
-    if (isFirebaseConfigured && db) {
+    let firestoreSuccess = false;
+    let firestoreErrorMessage = '';
+
+    const adminDb = getAdminDb();
+
+    if (isAdminConfigured() && adminDb) {
       try {
         // Get product info
         let productName = '크루즈 상품';
@@ -83,28 +88,40 @@ export async function POST(req: NextRequest) {
 
         // Try to get product from Firestore first
         if (productId) {
-          const productRef = doc(db, 'products', productId);
-          const productSnap = await getDoc(productRef);
+          try {
+            const productRef = adminDb.collection('products').doc(productId);
+            const productSnap = await productRef.get();
 
-          if (productSnap.exists()) {
-            const productData = productSnap.data();
-            productName = productData.nameKo || productData.name || '크루즈 상품';
-            productPrice = productData.price || (amount / quantity);
-          } else {
-            // Fall back to static products
-            const staticProduct = staticProducts.find(p => p.id === productId || p.slug === productId);
-            if (staticProduct) {
-              productName = staticProduct.nameKo || staticProduct.name;
-              productPrice = staticProduct.price;
+            if (productSnap.exists) {
+              const productData = productSnap.data();
+              productName = productData?.nameKo || productData?.name || '크루즈 상품';
+              productPrice = productData?.price || (amount / quantity);
+            } else {
+              // Fall back to static products
+              const staticProduct = staticProducts.find(p => p.id === productId || p.slug === productId);
+              if (staticProduct) {
+                productName = staticProduct.nameKo || staticProduct.name;
+                productPrice = staticProduct.price;
+              }
             }
+          } catch (productError) {
+            console.warn('Failed to get product info:', productError);
           }
         }
 
         orderNumber = generateOrderNumber();
 
-        // Create order in Firestore
-        const ordersRef = collection(db, 'orders');
-        await addDoc(ordersRef, {
+        console.log('Creating order in Firestore with Admin SDK:', {
+          orderNumber,
+          userId: userId || 'guest',
+          userEmail: customerEmail,
+          productName,
+          amount,
+        });
+
+        // Create order in Firestore using Admin SDK
+        const ordersRef = adminDb.collection('orders');
+        const docRef = await ordersRef.add({
           orderNumber,
           userId: userId || 'guest',
           userEmail: customerEmail || '',
@@ -116,27 +133,33 @@ export async function POST(req: NextRequest) {
           quantity,
           totalAmount: amount,
           payment: {
-            method: 'toss' as const,
-            status: 'completed' as const,
+            method: 'toss',
+            status: 'completed',
             tossPaymentKey: data.paymentKey,
             tossOrderId: orderId,
-            paidAt: serverTimestamp(),
+            paidAt: FieldValue.serverTimestamp(),
           },
-          status: 'confirmed' as const,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          status: 'confirmed',
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
 
-        console.log('Order created successfully:', orderNumber);
+        console.log('Order created successfully with Admin SDK:', orderNumber, 'docId:', docRef.id);
+        firestoreSuccess = true;
       } catch (firestoreError) {
-        // Log but don't fail - payment was already confirmed
         console.error('Failed to create order in Firestore:', firestoreError);
+        firestoreErrorMessage = firestoreError instanceof Error ? firestoreError.message : 'Unknown error';
       }
+    } else {
+      console.warn('Firebase Admin not configured, skipping order creation');
+      firestoreErrorMessage = 'Firebase Admin not configured';
     }
 
     return NextResponse.json({
       success: true,
       orderNumber,
+      firestoreSuccess,
+      firestoreError: firestoreErrorMessage || undefined,
       payment: {
         paymentKey: data.paymentKey,
         orderId: data.orderId,

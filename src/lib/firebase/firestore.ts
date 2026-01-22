@@ -220,36 +220,41 @@ export const deleteProduct = async (id: string): Promise<void> => {
 
 // User functions
 export const getUserOrders = async (userId: string, userEmail?: string): Promise<Order[]> => {
-  if (!isFirebaseConfigured || !db) return [];
+  if (!isFirebaseConfigured || !db) {
+    console.log('Firebase not configured');
+    return [];
+  }
+
+  console.log('getUserOrders called with userId:', userId, 'email:', userEmail);
 
   try {
-    // First try by userId
     const ordersRef = collection(db, 'orders');
-
-    // Try with orderBy first (requires composite index)
     let orders: Order[] = [];
+
+    // Try simple query first (without orderBy to avoid index issues)
     try {
-      const q = query(ordersRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      orders = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Order[];
-    } catch {
-      // If index error, fallback to simple query without orderBy
+      console.log('Querying orders with userId:', userId);
       const q = query(ordersRef, where('userId', '==', userId));
       const snapshot = await getDocs(q);
-      orders = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Order[];
+      console.log('Query returned', snapshot.docs.length, 'documents');
 
-      // Sort in memory
+      orders = snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('Order doc:', doc.id, 'userId:', data.userId);
+        return {
+          id: doc.id,
+          ...data,
+        };
+      }) as Order[];
+
+      // Sort in memory by createdAt descending
       orders.sort((a, b) => {
         const aTime = a.createdAt?.toDate?.()?.getTime() || 0;
         const bTime = b.createdAt?.toDate?.()?.getTime() || 0;
         return bTime - aTime;
       });
+    } catch (queryError) {
+      console.error('Query error:', queryError);
     }
 
     // If no orders found by userId and email provided, try by email
@@ -258,6 +263,8 @@ export const getUserOrders = async (userId: string, userEmail?: string): Promise
       try {
         const emailQuery = query(ordersRef, where('userEmail', '==', userEmail));
         const emailSnapshot = await getDocs(emailQuery);
+        console.log('Email query returned', emailSnapshot.docs.length, 'documents');
+
         orders = emailSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
@@ -274,6 +281,7 @@ export const getUserOrders = async (userId: string, userEmail?: string): Promise
       }
     }
 
+    console.log('Returning', orders.length, 'orders');
     return orders;
   } catch (error) {
     console.error('getUserOrders error:', error);
