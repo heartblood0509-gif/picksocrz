@@ -12,6 +12,24 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'http',
+        hostname: 'www.yonhapnewstv.co.kr',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.yonhapnewstv.co.kr',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.yonhapnews.co.kr',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
