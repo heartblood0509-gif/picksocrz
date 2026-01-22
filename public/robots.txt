@@ -1,0 +1,22 @@
+# PICKSO Cruise - robots.txt
+
+User-agent: *
+Allow: /
+
+# Sitemap 위치
+Sitemap: https://your-cruise-domain.com/sitemap.xml
+
+# 크롤링 제한 (관리자 페이지 등)
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+
+# 검색엔진별 설정
+User-agent: Googlebot
+Allow: /
+
+User-agent: Yeti
+Allow: /
+
+User-agent: Bingbot
+Allow: /
